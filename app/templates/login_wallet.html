@@ -1,0 +1,176 @@
+<!-- extend base layout -->
+{% extends "appbuilder/base.html" %}
+
+{% block content %}
+
+<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+
+<div class="container">
+    <div id="loginbox" style="margin-top:50px;" class="mainbox col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2">
+        <div class="panel panel-primary" >
+            <div class="panel-heading">
+                <div class="panel-title">{{ title }}</div>
+            </div>
+            <div style="padding-top:30px" class="panel-body" >
+
+                <form class="form" id="login-form" action="" method="post" name="login" target="hidden-form">
+                    {{form.hidden_tag()}}
+                    <div class="control-group{% if form.errors.openid is defined %} error{% endif %}">
+
+                        <div class="control-group">
+                            <div class="controls">
+                                <br>
+                                <div>
+                                    <input class="btn btn-primary btn-block" id="login-input" type="submit" value="{{_('Connect')}}" onClick="handleConnect()">
+                                        {% if appbuilder.sm.auth_user_registration %}
+                                    <a href="{{appbuilder.sm.get_url_for_registeruser}}" class="btn btn-block btn-primary" data-toggle="tooltip" rel="tooltip"
+                                    title="{{_('If you are not already a creator, please register your wallet to access Launchables')}}">
+                                        {{_('Register')}}
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                </form>
+                <iframe style="display:none" name="hidden-form"></iframe>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+      var web3 = new Web3(new Web3.providers.HttpProvider('https://mainnet.infura.io/v3/ed187b1a196947b7b5602ff5aebf854e'));
+      let currentAccount = null;
+      let nonce = '848084430';
+
+      function detectMetaMask() {
+            if (typeof window.ethereum !== 'undefined') {
+                return true
+            } else {
+                return false
+            }
+      }
+
+      const signNonce = async function() {
+
+          let privateKey = "d186e198d1befcc8685c10955c6bfe6dfda643f2f14656bde2305b5202487e6f"
+          let sigObj = await web3.eth.accounts.sign(nonce, privateKey)
+          let msgHash = sigObj.messageHash;
+          let sig = sigObj.signature;
+
+          var signature = await web3.eth.accounts.sign(nonce, currentAccount)
+          //document.getElementById("public-key").setAttribute('value', msgHash);
+          //document.getElementById("signed-message").setAttribute('value', sig);
+          //document.getElementById('login-form').submit();
+          let whoSigned = await web3.eth.accounts.recover(sigObj)
+          console.log('Client Side Check Sum for Current Address', whoSigned)
+          console.log('Client Side Check Sum for Current Address', signature)
+
+          let validateNonceUrl = '/signature/'.concat(sig, '/', msgHash, '/', currentAccount)
+
+          fetch(
+              validateNonceUrl
+            )
+              .then((response) => response.json())
+              .then(response => {
+                console.log('Validating signature: ', validateNonceUrl)
+              })
+              .then(response => {
+                 console.log('Nonce value to sign: ', response);
+              })
+              .then((response)=>{
+                  if(response.redirected){
+                      window.location.href = response.url;
+                  }
+              })
+              .catch((error) => {
+                  console.log('Error', error)
+                });
+          }
+
+      const getNonce = async function(){
+          let nonceUrl = '/nonce/'.concat(currentAccount)
+          fetch(
+            nonceUrl
+          )
+            .then((response) => response.json())
+            .then(response => {
+               console.log('Requesting nonce for wallet address: ', nonceUrl);
+            })
+            .then(response => {
+               console.log('Nonce value to sign: ', nonce);
+               //signNonce();
+               return nonce
+            })
+            .catch((error) => {
+              console.log(error)
+            });
+        }
+
+      function handleAccountsChanged(accounts) {
+          console.log('Calling HandleChanged')
+
+          if (accounts.length === 0) {
+              console.log('Please connect to MetaMask.');
+              $('#enableMetamask').html('Connect with Metamask')
+          } else if (accounts[0] !== currentAccount) {
+              currentAccount = accounts[0];
+              $('#enableMetamask').html(currentAccount)
+              $('#status').html('')
+              try {
+                  //getNonce();
+              } catch (err) {
+                throw new Error(
+                  'You need to get the nonce and sign'
+                );
+              };
+
+              try {
+                  signNonce();
+                  console.log('Sign Here')
+              } catch (err) {
+                throw new Error(
+                  'You need to sign the message to be able to log in.'
+                );
+              };
+
+            }
+          }
+
+        function connect() {
+            console.log('Calling connect()')
+            ethereum
+              .request({ method: 'eth_requestAccounts' })
+              .then(handleAccountsChanged)
+              .catch((err) => {
+            if (err.code === 401) {
+                console.log('Please connect to MetaMask.');
+                $('#status').html('You refused to connect Metamask')
+            } else {
+                console.error(err);
+            }
+          });
+        }
+
+        function handleConnect() {
+            m = detectMetaMask()
+            if(m) {
+                $('#metaicon').removeClass('meta-gray')
+                $('#metaicon').addClass('meta-normal')
+                $('#enableMetamask').attr('disabled',false)
+                connect()
+            } else {
+                $('#enableMetamask').attr('disabled',true)
+                $('#metaicon').removeClass('meta-normal')
+                $('#metaicon').addClass('meta-gray')
+            }
+
+            $('#enableMetamask').click(function() {
+                connect()
+            });
+          };
+</script>
+{% endblock %}

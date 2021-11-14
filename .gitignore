@@ -1,0 +1,11 @@
+*/app.db
+app.db
+.env
+*/.env
+**/.env
+***/.env
+app/static/*
+/app/static/*
+config.py
+*/config.py
+/config.py
