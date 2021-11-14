@@ -35,9 +35,8 @@ from flask_appbuilder.const import (
 )
 from web3 import Web3
 import eth_account
-
+from .config import WEB3_INFURA_PROJECT_HTTPS
 APPLICATION_HOST = 'http://localhost:5000'
-WEB3_INFURA_PROJECT_HTTPS = 'https://mainnet.infura.io/v3/ed187b1a196947b7b5602ff5aebf854e'
 
 class WalletModelView(UserDBModelView):
 
