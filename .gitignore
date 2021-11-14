@@ -4,8 +4,9 @@ app.db
 */.env
 **/.env
 ***/.env
-app/static/*
-/app/static/*
+app/static/node_modules
+app/static/uploads
+app/static/src/components/util
 config.py
 */config.py
 /config.py
