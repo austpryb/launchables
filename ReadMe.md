@@ -1,3 +1,5 @@
+#### Tutorial
+- https://www.youtube.com/channel/UCWLp_87XX5lYkEATitKl5Bg
 #### Config First
 - .env
 - config.py
