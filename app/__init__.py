@@ -13,7 +13,7 @@ app.config.from_object("config")
 
 db = SQLA(app)
 
-appbuilder = AppBuilder(app, db.session, menu=Menu(reverse=True), security_manager_class=WalletSecurityManager, indexview=IndexView, base_template='web3_base.html')
+appbuilder = AppBuilder(app, db.session, menu=Menu(reverse=True), security_manager_class=WalletSecurityManager, indexview=IndexView, base_template='web3_base2.html')
 
 #white = ['http://localhost:8080','http://localhost:9000','http://localhost:3000','http://localhost:5000']
 

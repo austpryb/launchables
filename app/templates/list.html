@@ -1,11 +1,11 @@
 {% extends "web3_base2.html" %}
-{% import 'appbuilder/general/lib.html' as lib %}
+{% import 'web3_lib.html' as lib %}
 
 {% block content %}
 {{ lib.panel_begin(title) }}
 
     {% block list_search scoped %}
-        {% call lib.accordion_tag("accordion1",_("Search"), False) %}
+        {% call lib.accordion_tag("accordion1",_("Search"), True) %}
             {{ widgets.get('search')()|safe }}
         {% endcall %}
     {% endblock %}

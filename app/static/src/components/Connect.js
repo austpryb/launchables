@@ -1,6 +1,6 @@
 import React, { Component, useState, useEffect } from 'react';
 import { Button, Spinner, Container, Col, Row, Card } from 'react-bootstrap';
-import 'bootstrap/dist/css/bootstrap.min.css';
+//import 'bootstrap/dist/css/bootstrap.min.css';
 import {
     connectWallet,
     getCurrentWalletConnected

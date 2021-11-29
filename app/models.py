@@ -37,7 +37,6 @@ class WalletQuery(Query):
 class Wallet(User):
     __tablename__ = "ab_user"
 
-
     query_class = WalletQuery
     username = Column(String(64), unique=True, nullable=False)
     nonce = Column(Integer, nullable=True, default=random_integer, unique=True)

@@ -35,8 +35,9 @@ from flask_appbuilder.const import (
 )
 from web3 import Web3
 import eth_account
-from .config import WEB3_INFURA_PROJECT_HTTPS
-APPLICATION_HOST = 'http://localhost:5000'
+from .widgets import Web3FormWidget, Web3ListWidget, Web3ShowWidget
+
+APPLICATION_HOST=os.environ.get('APPLICATION_HOST')
 
 class WalletModelView(UserDBModelView):
 
@@ -133,6 +134,20 @@ class WalletAuthView(AuthDBView):
         response.headers.add('Access-Control-Allow-Methods', "*")
         return response
 
+    @expose("/alchemy", methods=["GET"])
+    def nonce(self):
+        alchemy_key = self.appbuilder.app.config['WEB3_INFURA_PROJECT_HTTPS']
+        response = jsonify(alchemy_key=alchemy_key)
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        return response
+
+    @expose("/nonce/<public_key>", methods=["GET"])
+    def nonce(self, public_key):
+        nonce = self.get_nonce(public_key)
+        response = jsonify(nonce=nonce)
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        return response
+
     @expose("/nonce/<public_key>", methods=["GET"])
     def nonce(self, public_key):
         nonce = self.get_nonce(public_key)
@@ -212,6 +227,15 @@ def _roles_custom_formatter(string: str) -> str:
     return string
 
 class WalletModelView(ModelView):
+    show_template = 'show.html'
+    list_template = 'list.html'
+    add_template = 'add.html'
+    edit_template = 'edit.html'
+
+    add_widget = Web3FormWidget
+    list_widget = Web3ListWidget
+    show_widget = Web3ShowWidget
+
     route_base = "/users"
 
     list_title = lazy_gettext("List Users")

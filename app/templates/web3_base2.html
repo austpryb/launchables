@@ -1,9 +1,9 @@
-{% extends 'appbuilder/init.html' %}
-{% import 'appbuilder/baselib.html' as baselib %}
+{% extends 'web3_init.html' %}
+{% import 'web3_baselib.html' as baselib %}
 
 {% block body %}
-{% include 'appbuilder/general/confirm.html' %}
-{% include 'appbuilder/general/alert.html' %}
+{% include 'confirm.html' %}
+{% include 'alert.html' %}
 
 {% block navbar %}
 <header class="top" role="header">
@@ -11,11 +11,13 @@
 </header>
 {% endblock %}
 
-      {% block messages %}
-      {% include 'appbuilder/flash.html' %}
-      {% endblock %}
-      {% block content %}
-      {% endblock %}
+<div class="container">
+    {% block messages %}
+    {% include 'appbuilder/flash.html' %}
+    {% endblock %}
+    {% block content %}
+    {% endblock %}
+</div>
 
 {% block footer %}
 <footer>
