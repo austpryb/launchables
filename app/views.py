@@ -16,7 +16,7 @@ from flask_appbuilder.urltools import get_filter_args
 from sqlalchemy import create_engine
 from . import appbuilder, db
 from app.models import CollectionLayers, LayerFiles, LayerImages, LaunchableCollection, assoc_launchable_collection_layers
-from .PinataPy import PinataFileUploadField, PinataFileManager
+from .PinataPy import PinataFileUploadField, PinataFileManager, PinataPy
 from .widgets import Web3FormWidget, Web3ListWidget, Web3ShowWidget
 from datetime import datetime
 from io import BytesIO
@@ -32,8 +32,9 @@ import logging
 import time
 from web3 import Web3
 import requests
-from io import BytesIO
-from .PinataPy import PinataPy
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.INFO)
 
 developer_wallet=os.environ.get('WALLET')
 pinata_api_key = os.environ.get('PINATA_API_KEY')
@@ -42,13 +43,27 @@ project_id = os.environ.get('IPFS_PROJECT_ID')
 project_secret = os.environ.get('IPFS_PROJECT_SECRET')
 factory_override = os.environ.get('FACTORY_OVERRIDE') #factory, stats, fund-launch, fund, launch, payload
 
-logging.basicConfig()
-logging.getLogger().setLevel(logging.INFO)
+OPENSEA_FORMAT = "https://testnets.opensea.io/assets/{}/{}"
+NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS = ["hardhat", "development", "ganache"]
+LOCAL_BLOCKCHAIN_ENVIRONMENTS = NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS + [
+    "mainnet-fork",
+    "binance-fork",
+    "matic-fork",
+]
 
-os.chdir(r'brownie/')
+DECIMALS = 18
+INITIAL_VALUE = Web3.toWei(2000, "ether")
+
+'''
+if os.environ.get('DEPLOYMENT') == 'local':
+    os.chdir(r'brownie/')
+else:
+    os.chdir(r'/usr/src/app/brownie/')
+
 network.connect('rinkeby')
-project = project.load()
+project = project.load(r'.')
 project.load_config()
+'''
 
 def get_user_id():
     return g.user.id
@@ -95,22 +110,6 @@ def get_collection(id):
         print(e)
         return None
 
-OPENSEA_FORMAT = "https://testnets.opensea.io/assets/{}/{}"
-NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS = ["hardhat", "development", "ganache"]
-LOCAL_BLOCKCHAIN_ENVIRONMENTS = NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS + [
-    "mainnet-fork",
-    "binance-fork",
-    "matic-fork",
-]
-
-contract_to_mock = {
-    "link_token": project.LinkToken
-}
-
-DECIMALS = 18
-INITIAL_VALUE = Web3.toWei(2000, "ether")
-
-
 def get_account(index=None, id=None):
     if index:
         return accounts[index]
@@ -119,7 +118,6 @@ def get_account(index=None, id=None):
     if id:
         return accounts.load(id)
     return accounts.add(config["wallets"]["from_key"])
-
 
 def get_contract(contract_name):
     """If you want to use this function, go to the brownie config and add a new entry for
@@ -136,6 +134,9 @@ def get_contract(contract_name):
             Contract of the type specificed by the dictonary. This could be either
             a mock or the 'real' contract on a live network.
     """
+    contract_to_mock = {
+        "link_token": project.LinkToken
+    }
     contract_type = contract_to_mock[contract_name]
     if network.show_active() in NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS:
         if len(contract_type) <= 0:
@@ -167,98 +168,71 @@ def fund_with_link(
 
 
 def deploy_factory(payload):
-    #try:
-    proxy_registry_address = developer_wallet
-    account = accounts.add(config['wallets']['from_key'])
-    if factory_override == 'factory':
-        launchable = project.LaunchCollectible.deploy(
-            proxy_registry_address,
-            {"from": account},
-            publish_source=True
-        )
-        factory = project.Factory.deploy(
-            proxy_registry_address,
-            launchable.address,
-            config["networks"][network.show_active()]["vrf_coordinator"],
-            config["networks"][network.show_active()]["link_token"],
-            config["networks"][network.show_active()]["keyhash"],
-            {"from": account},
-            publish_source=True,
-        )
-        fund_factory = fund_with_link(account=account, contract_address=factory.address)
-        return factory.address, launchable.address
-    elif factory_override == 'payload':
-        #logging.info(payload)
-        nft_images = map_layers_from_index(layers=get_layers(payload), nft_request=nft_request(randomness=get_randomness_dev()))
-        logging.info('NFT Images:')
-        logging.info(nft_images)
-        nft = process_mapped_image(nft_images)
-        logging.info('NFT:')
-        logging.info(nft)
-        image = assemble_layers(nft)
-        logging.info('Combined Image:')
-        logging.info(image)
-        return True, True
-    elif factory_override == 'factory-launch':
-        launchable = project.LaunchCollectible.deploy(
-            proxy_registry_address,
-            {"from": account},
-            publish_source=True
-        )
-        factory = project.Factory.deploy(
-            proxy_registry_address,
-            launchable.address,
-            config["networks"][network.show_active()]["vrf_coordinator"],
-            config["networks"][network.show_active()]["link_token"],
-            config["networks"][network.show_active()]["keyhash"],
-            {"from": account},
-            publish_source=True,
-        )
-        fund_factory = fund_with_link(account=account, contract_address=factory.address)
-        #transaction = factory.requestLaunchable("CLINK", {"from": account})
-        #transaction.wait(1)
-        #time.sleep(35)
-        #print(transaction.events)
-        #requestId = transaction.events["RandomnessRequest"]["requestID"]
-        #tokenId = factory.requestToTokenId(requestId)
-        return factory.address, launchable.address
-    elif factory_override == 'fund-launch':
-        factory = project.Factory[len(project.Factory) - 1] #0x88933d0D5aA80855E0cB1Aa12A36924891a754B4
-        #launchable = project.LaunchCollectible[len(project.LaunchCollectible) - 1]
-        fund_factory = fund_with_link(wallet=account, contract_address=factory.address)
-        #print('Funding Factory with Link')
-        transaction = factory.requestLaunchable("CLINK", {"from": account})
-        transaction.wait(1)
-        time.sleep(35)
-        print(transaction.events)
-        requestId = transaction.events["RandomnessRequest"]["requestID"]
-        tokenId = factory.requestToTokenId(requestId)
-        return requestId, tokenId
-    elif factory_override == 'fund':
-        factory = project.Factory[len(project.Factory) - 1]
-        fund_factory = fund_with_link(account=account, contract_address=factory.address)
-        return True, True
-    elif factory_override == 'launch':
-        factory = project.Factory[len(project.Factory) - 1]
-        logging.info(factory.address)
-        transaction = factory.requestLaunchable("HACK2", {"from": account})
-        transaction.wait(1)
-        #time.sleep(30)
-        #requestId = transaction.events["RandomnessRequest"]["requestID"]
-        #token_id = factory.requestToTokenId(requestId)
-        #return requestId, token_id
-        return True, True
-    elif factory_override == 'stats':
-        factory = project.Factory[len(project.Factory) - 1]
-        logging.info(factory.address)
-        count = factory.getNumberOfLaunchables()
-        logging.info(count)
-        overview = factory.getLaunchableStats(count)
-        logging.info(overview)
-        return factory.address, overview
-    #except Exception as e:
-    #    logging.error(e)
-    #    return str(e), None
+    try:
+        proxy_registry_address = developer_wallet
+        account = accounts.add(config['wallets']['from_key'])
+        if factory_override == 'factory':
+            launchable = project.LaunchCollectible.deploy(
+                proxy_registry_address,
+                {"from": account},
+                publish_source=True
+            )
+            factory = project.Factory.deploy(
+                proxy_registry_address,
+                launchable.address,
+                config["networks"][network.show_active()]["vrf_coordinator"],
+                config["networks"][network.show_active()]["link_token"],
+                config["networks"][network.show_active()]["keyhash"],
+                {"from": account},
+                publish_source=True,
+            )
+            fund_factory = fund_with_link(account=account, contract_address=factory.address)
+            return factory.address, launchable.address
+        elif factory_override == 'payload':
+            nft_images = map_layers_from_index(layers=get_layers(payload), nft_request=nft_request(randomness=get_randomness_dev()))
+            logging.info('NFT Images:')
+            logging.info(nft_images)
+            nft = process_mapped_image(nft_images)
+            logging.info('NFT:')
+            logging.info(nft)
+            image = assemble_layers(nft)
+            logging.info('Combined Image:')
+            logging.info(image)
+            return True, True
+        elif factory_override == 'fund-launch':
+            factory = project.Factory[len(project.Factory) - 1] #0x88933d0D5aA80855E0cB1Aa12A36924891a754B4
+            fund_factory = fund_with_link(wallet=account, contract_address=factory.address)
+            transaction = factory.requestLaunchable("CLINK", {"from": account})
+            transaction.wait(1)
+            time.sleep(35)
+            print(transaction.events)
+            requestId = transaction.events["RandomnessRequest"]["requestID"]
+            tokenId = factory.requestToTokenId(requestId)
+            return requestId, tokenId
+        elif factory_override == 'fund':
+            factory = project.Factory[len(project.Factory) - 1]
+            fund_factory = fund_with_link(account=account, contract_address=factory.address)
+            return True, True
+        elif factory_override == 'launch':
+            factory = project.Factory[len(project.Factory) - 1]
+            logging.info(factory.address)
+            transaction = factory.requestLaunchable("HACK2", {"from": account})
+            transaction.wait(1)
+            time.sleep(30)
+            requestId = transaction.events["RandomnessRequest"]["requestID"]
+            token_id = factory.requestToTokenId(requestId)
+            return requestId, token_id
+        elif factory_override == 'stats':
+            factory = project.Factory[len(project.Factory) - 1]
+            logging.info(factory.address)
+            count = factory.getNumberOfLaunchables()
+            logging.info(count)
+            overview = factory.getLaunchableStats(count)
+            logging.info(overview)
+            return factory.address, overview
+    except Exception as e:
+        logging.error(e)
+        return str(e), None
 
 def mint(factory_address, launchable_address):
     try:
@@ -835,7 +809,7 @@ class Web3ConnectView(BaseView):
 appbuilder.add_view_no_menu(Web3ConnectView)
 
 appbuilder.add_view(
-    LaunchableCollectionModelView, "Launchable Collections", category_icon='fa-bars', icon="fa-file", category="Collections"
+    LaunchableCollectionModelView, "Launch Collections", category_icon='fa-bars', icon="fa-file", category="Collections"
 )
 
 appbuilder.add_view(
@@ -843,7 +817,7 @@ appbuilder.add_view(
 )
 
 appbuilder.add_view(
-    CollectionLayersMasterDetailView, "Add Layer Images", category_icon='fa-bars', icon="fa-image", category="Collections"
+    CollectionLayersMasterDetailView, "Add Images to Layer", category_icon='fa-bars', icon="fa-image", category="Collections"
 )
 
 appbuilder.add_view_no_menu(RegisterWalletView)

@@ -15,4 +15,4 @@ COPY . /usr/src/app
 
 EXPOSE 5000
 #ENTRYPOINT ["flask", "run"]
-CMD ["python","run.py"]
+CMD ["python","/usr/src/app/run.py"]

@@ -13,13 +13,14 @@ const Connect = (props) => {
   const [description, setDescription] = useState("");
   const [url, setURL] = useState("");
 
-  useEffect(async () => {
-    const { address, status } = await getCurrentWalletConnected();
-
-    setWallet(address);
-    setStatus(status);
-
-    addWalletListener();
+  useEffect(() => {
+    async function fetchData() {
+        const { address, status } = await getCurrentWalletConnected();
+        setWallet(address);
+        setStatus(status);
+        addWalletListener();
+    }
+    fetchData();
   }, []);
 
   function addWalletListener() {

@@ -39,6 +39,9 @@ from .widgets import Web3FormWidget, Web3ListWidget, Web3ShowWidget
 
 APPLICATION_HOST=os.environ.get('APPLICATION_HOST')
 
+if os.environ.get('DEPLOYMENT') == 'local':
+    APPLICATION_HOST=os.environ.get('APPLICATION_LOCALHOST')
+
 class WalletModelView(UserDBModelView):
 
     show_fieldsets = [
@@ -148,27 +151,22 @@ class WalletAuthView(AuthDBView):
         response.headers.add("Access-Control-Allow-Origin", "*")
         return response
 
-    @expose("/nonce/<public_key>", methods=["GET"])
-    def nonce(self, public_key):
-        nonce = self.get_nonce(public_key)
-        response = jsonify(nonce=nonce)
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        return response
-
-    @expose("/signature/<signature>/<public_key>/<hash>", methods=["GET","POST","OPTIONS"])
+    @expose("/signature/<signature>/<public_key>/<hash>", methods=["GET"])
     def signature(self, signature, public_key, hash):
         if request.method == 'OPTIONS':
-            return build_preflight_response()
+            return self.build_preflight_response()
 
         elif request.method == 'POST':
             wallet = self.appbuilder.sm.auth_wallet(signature, public_key, hash)
             if not wallet:
-                return jsonify(wallet=None, success=False)
-                #return redirect(self.appbuilder.get_url_for_login)
+                response = jsonify(wallet=None, success=False)
+                response.headers.add("Access-Control-Allow-Origin", "*")
+                return response
             print('AUTH WALLET EXECUTED: ', wallet.public_key)
             login_user(wallet, remember=False)
             response = jsonify(wallet=wallet.public_key, url=self.appbuilder.get_url_for_index)
-            response.headers.add("Access-Control-Allow-Origin", "*")
+            #response.headers.add("Access-Control-Allow-Origin", "*")
+            self.build_preflight_response()
             return response
 
         elif request.method == 'GET':
@@ -178,7 +176,9 @@ class WalletAuthView(AuthDBView):
             print('AUTH WALLET EXECUTED: ', wallet)
             if not wallet:
                 flash(as_unicode(self.invalid_login_message), "warning")
-                return jsonify(wallet=None, success=False)
+                response = jsonify(wallet=None, success=False)
+                response.headers.add("Access-Control-Allow-Origin", "*")
+                return response
                 #return redirect(self.appbuilder.get_url_for_login)
             login_user(wallet, remember=False)
             return redirect(self.appbuilder.get_url_for_index)

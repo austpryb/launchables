@@ -17,18 +17,19 @@ export default function SignNonce() {
   const [signature, setSignature] = useState("");
   const history = useHistory();
 
-  useEffect(async () => {
-    const { address, status } = await getCurrentWalletConnected();
-    setWallet(address);
-    props.history.push("/");
+  useEffect(() => {
+    async function fetchData() {
+        const { address, status } = await getCurrentWalletConnected();
+        setWallet(address);
+    }
+    fetchData();
   }, []);
 
   function handleSignNonce() {
-      let path = '/';
       const { address, signature } = handleClick();
       setSignature(signature);
-      window.location.href='/';
     }
+
 
   return walletAddress.length > 0 ? (
       <Container fluid>
@@ -40,13 +41,9 @@ export default function SignNonce() {
               style={{ display: "flex", justifyContent: "center" }}
             >
               <Card>
-                    {this.renderRedirect()}
-                    {auth && (
-                      <Button onClick={handleSignNonce} variant="dark" size="lg">
-                       Launch Project
-                      </Button>
-                    )
-                  }
+                  <Button onClick={handleSignNonce} variant="dark" size="md">
+                   Login
+                  </Button>
               </Card>
             </div>
           </Col>
