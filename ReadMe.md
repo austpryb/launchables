@@ -13,6 +13,9 @@
 - docker build . -t user/image:tag
 - docker run user/image:tag
 
+#### or Docker Compose 
+- docker compose up --build
+
 #### Register Wallet
 - add your wallet to the user argument and run the following
 - python tests registration.py

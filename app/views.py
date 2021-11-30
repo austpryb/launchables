@@ -54,7 +54,6 @@ LOCAL_BLOCKCHAIN_ENVIRONMENTS = NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS + [
 DECIMALS = 18
 INITIAL_VALUE = Web3.toWei(2000, "ether")
 
-'''
 if os.environ.get('DEPLOYMENT') == 'local':
     os.chdir(r'brownie/')
 else:
@@ -63,7 +62,6 @@ else:
 network.connect('rinkeby')
 project = project.load(r'.')
 project.load_config()
-'''
 
 def get_user_id():
     return g.user.id
@@ -93,6 +91,7 @@ def get_collection(id):
     try:
         payload = {}
         collection = appbuilder.session.query(CollectionLayers.id, LaunchableCollection.collection_name, CollectionLayers.layer_name, CollectionLayers.layer_order) \
+                                       .join(LaunchableCollection) \
                                        .filter(LaunchableCollection.id == id) \
                                        .order_by(CollectionLayers.layer_order) \
                                        .all()
@@ -168,7 +167,7 @@ def fund_with_link(
 
 
 def deploy_factory(payload):
-    try:
+    #try:
         proxy_registry_address = developer_wallet
         account = accounts.add(config['wallets']['from_key'])
         if factory_override == 'factory':
@@ -230,9 +229,9 @@ def deploy_factory(payload):
             overview = factory.getLaunchableStats(count)
             logging.info(overview)
             return factory.address, overview
-    except Exception as e:
-        logging.error(e)
-        return str(e), None
+    #except Exception as e:
+    #    logging.error(e)
+    #    return str(e), None
 
 def mint(factory_address, launchable_address):
     try:
@@ -723,8 +722,9 @@ class LaunchableCollectionModelView(ModelView):
 
     def launch_pad(self, item):
         payload = get_collection(item)
-        factory_contract, launchable_contract = deploy_factory(payload)
-        logging.info(str(factory_contract) + ' | '  +  str(launchable_contract))
+        logging.info(item, payload)
+        #factory_contract, launchable_contract = deploy_factory(payload)
+        #logging.info(str(factory_contract) + ' | '  +  str(launchable_contract))
         return True
 
     list_columns = [
@@ -768,7 +768,6 @@ class LaunchableCollectionModelView(ModelView):
         output = BytesIO()
         now = datetime.now()
         date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
-        print(date_time)
         get_filter_args(self._filters)
 
         if not self.base_order:

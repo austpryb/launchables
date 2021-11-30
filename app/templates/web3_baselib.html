@@ -1,5 +1,5 @@
 {% macro menu_item(item) %}
-	<a class="dropdown-item" tabindex="-1" href="{{item.get_url()}}">
+	<a class="dropdown-item nav-link" tabindex="-1" href="{{item.get_url()}}">
    	{% if item.icon %}
         <i class="fa fa-fw {{item.icon}}"></i>&nbsp;
     {% endif %}
@@ -37,7 +37,7 @@
                             <li class="divider"></li>
                             {% set divider = False %}
                         {% endif %}
-					        <li>{{ menu_item(item2) }}</li>
+					        <li class="dropdown-item">{{ menu_item(item2) }}</li>
                     {% endif %}
 					{% endif %}
 				{% endfor %}
@@ -111,14 +111,13 @@
 	               <a class="dropdown-toggle" data-toggle="dropdown" href="#">
 	               <span class="fa fa-user"></span> {{g.user.get_full_name()}}
                    </a>
-                    <ul class="dropdown-menu">
-			<li><a href="{{appbuilder.get_url_for_userinfo}}"><span class="fa fa-fw fa-user"></span>{{_("Profile")}}</a></li>
-			<li><a href="{{appbuilder.get_url_for_logout}}"><span class="fa fa-fw fa-sign-out"></span>{{_("Logout")}}</a></li>
-                    </ul>
-
+                    <ul class="dropdown-menu nav">
+											<li class="nav-item dropdown-item"><a class="nav-link" href="{{appbuilder.get_url_for_userinfo}}"><span class="fa fa-fw fa-user"></span>{{_("Profile")}}</a></li>
+											<li class="nav-item dropdown-item"><a class="nav-link" href="{{appbuilder.get_url_for_logout}}"><span class="fa fa-fw fa-sign-out"></span>{{_("Logout")}}</a></li>
+								   </ul>
                 </li>
                 {% else %}
-                    <li><a href="{{appbuilder.get_url_for_login}}">
+                    <li class="nav-item dropdown-item"><a class="nav-link" href="{{appbuilder.get_url_for_login}}">
                     <i class="fa fa-fw fa-sign-in"></i>{{_("Login")}}</a></li>
                 {% endif %}
                 </ul>

@@ -132,7 +132,7 @@ class LayerImages(Model):
     id = Column(Integer, primary_key=True)
     layer_id = Column(Integer, ForeignKey("collection_layers.id"))
     layer = relationship("CollectionLayers")
-    image = Column(ImageColumn(size=(300, 300, True), thumbnail_size=(30, 30, True)))
+    image = Column(ImageColumn(size=(300, 300, True), thumbnail_size=(60, 60, True)))
     description = Column(String(150))
 
     def photo_img(self):

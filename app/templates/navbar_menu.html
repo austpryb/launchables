@@ -1,5 +1,5 @@
 {% macro menu_item(item) %}
-    <a tabindex="-1" href="{{item.get_url()}}">
+    <a class="nav-link" tabindex="-1" href="{{item.get_url()}}">
        {% if item.icon %}
         <i class="fa fa-fw {{item.icon}}"></i>&nbsp;
     {% endif %}
@@ -10,13 +10,13 @@
 {% for item1 in menu.get_list() %}
     {% if item1 | is_menu_visible %}
         {% if item1.childs %}
-            <li class="dropdown">
-            <a class="dropdown-toggle" data-toggle="dropdown" href="javascript:void(0)">
+            <li class="nav-item dropdown">
+            <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)" id="navbarDropdown2" role="button"  aria-haspopup="true" aria-expanded="false">
             {% if item1.icon %}
                 <i class="fa {{item1.icon}} pl-2"></i>&nbsp;
             {% endif %}
             {{_(item1.label)}}</a>
-            <ul class="dropdown-menu">
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
             {% for item2 in item1.childs %}
                 {% if item2 %}
                     {% if item2.name == '-' %}
@@ -24,7 +24,7 @@
                           <li class="divider"></li>
                         {% endif %}
                     {% elif item2 | is_menu_visible %}
-                        <li>{{ menu_item(item2) }}</li>
+                        <li class="nav-item dropdown-item">{{ menu_item(item2) }}</li>
                     {% endif %}
                 {% endif %}
             {% endfor %}

@@ -32,7 +32,7 @@
     {% if not page %} {% set page = 0 %} {% endif %}
     {% set pages = ((count / page_size)|round(0,'ceil')|int)%}
     {% if pages > 1 %}
-    <ul class="pagination pagination-sm" style="display:inherit;">
+    <ul class="pagination" style="display:inherit;">
 
         {% set init_page = 0 %}
         {% set min = page - 3 %}
@@ -53,52 +53,52 @@
         {% endif %}
 
     {% if min > 0 %}
-    <li>
-        <a href="{{ init_page | link_page(modelview_name) }}">&laquo;</a>
+    <li class="page-item">
+        <a class="page-link" href="{{ init_page | link_page(modelview_name) }}">&laquo;</a>
     </li>
     {% else %}
-    <li class="disabled">
-        <a href="javascript:void(0)">&laquo;</a>
+    <li class="disabled page-item">
+        <a class="page-link" href="javascript:void(0)">&laquo;</a>
     </li>
     {% endif %}
     {% if page > 0 %}
-    <li>
-        <a href="{{ (page - 1) | link_page(modelview_name) }}">&lt;</a>
+    <li class="page-item">
+        <a class="page-link" href="{{ (page - 1) | link_page(modelview_name) }}">&lt;</a>
     </li>
     {% else %}
-    <li class="disabled">
-        <a href="javascript:void(0)">&lt;</a>
+    <li class="disabled page-item">
+        <a class="page-link" href="javascript:void(0)">&lt;</a>
     </li>
     {% endif %}
 
     {% for p in range(min, max) %}
         {% if page == p %}
-        <li class="active">
-            <a href="javascript:void(0)">{{ (p + 1) }}</a>
+        <li class="active page-item">
+            <a class="page-link" href="javascript:void(0)">{{ (p + 1) }}</a>
         </li>
         {% else %}
         <li>
-            <a href="{{ p | link_page(modelview_name) }}">{{ (p + 1) }}</a>
+            <a class="page-link" href="{{ p | link_page(modelview_name) }}">{{ (p + 1) }}</a>
         </li>
         {% endif %}
     {% endfor %}
 
     {% if page + 1 < pages %}
-        <li>
-            <a href="{{ (page + 1) | link_page(modelview_name) }}">&gt;</a>
+        <li class="page-item">
+            <a class="page-link" href="{{ (page + 1) | link_page(modelview_name) }}">&gt;</a>
         </li>
     {% else %}
-        <li class="disabled">
-            <a href="javascript:void(0)">&gt;</a>
+        <li class="disabled page-item">
+            <a class="page-link" href="javascript:void(0)">&gt;</a>
         </li>
     {% endif %}
     {% if max < pages %}
-        <li>
-            <a href="{{ (pages - 1) | link_page(modelview_name) }}">&raquo;</a>
+        <li class="page-item">
+            <a class="page-link" href="{{ (pages - 1) | link_page(modelview_name) }}">&raquo;</a>
         </li>
     {% else %}
-        <li class="disabled">
-            <a href="javascript:void(0)">&raquo;</a>
+        <li class="disabled page-item">
+            <a class="page-link" href="javascript:void(0)">&raquo;</a>
         </li>
     {% endif %}
 </ul>
