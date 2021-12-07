@@ -326,7 +326,7 @@
                 <input type="hidden" id="action" name="action" />
             </form>
 
-            <a href="javascript:void(0)" class="btn btn-sm btn-primary"
+            <a class="dropdown-item"  href="javascript:void(0)" class="btn btn-sm btn-primary"
                {% if action.confirmation %}
                onclick="var a = new AdminActions(); return a.execute_single('{{path}}','{{action.confirmation}}');">
                {% else %}
@@ -364,15 +364,15 @@
 {% macro render_actions(actions, modelview_name) %}
 {% if actions %}
 <div class="btn-group">
-    <button type="button" class="btn btn-default btn-sm dropdown-toggle" data-toggle="dropdown" data-target="#actionModal">
+    <button type="button" class="btn btn-default btn-sm dropdown-toggle" data-toggle="dropdown" data-target="#actionModal" type="button" id="dropdownMenuButton" aria-haspopup="true" aria-expanded="false">
     {{_('Actions')}}</span>
     </button>
-    <ul class="dropdown-menu" role="menu">
+    <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenuButton">
         {% for action_key in actions %}
             {% set action = actions.get(action_key) %}
                 <li>
                     <a href="javascript:void(0)"
-                        class="{{action.name}}_menu_item">
+                        class="{{action.name}}_menu_item dropdown-item">
                         <i class="fa {{action.icon}}"></i>
                         {{ _(action.text) }}
                     </a>

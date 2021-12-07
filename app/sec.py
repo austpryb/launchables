@@ -41,6 +41,7 @@ from flask_appbuilder.const import (
 from web3 import Web3
 import eth_account
 from hexbytes import HexBytes
+import os
 
 log = logging.getLogger(__name__)
 
@@ -59,56 +60,6 @@ class WalletSecurityApi(SecurityApi):
     @expose("/login", methods=["POST"])
     @safe
     def login(self):
-        """Login endpoint for the API returns a JWT and optionally a refresh token
-        ---
-        post:
-          description: >-
-            Authenticate and get a JWT access and refresh token
-          requestBody:
-            required: true
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    username:
-                      description: The username for authentication
-                      example: admin
-                      type: string
-                    password:
-                      description: The password for authentication
-                      example: complex-password
-                      type: string
-                    provider:
-                      description: Choose an authentication provider
-                      example: db
-                      type: string
-                      enum:
-                      - db
-                      - ldap
-                    refresh:
-                      description: If true a refresh token is provided also
-                      example: true
-                      type: boolean
-          responses:
-            200:
-              description: Authentication Successful
-              content:
-                application/json:
-                  schema:
-                    type: object
-                    properties:
-                      access_token:
-                        type: string
-                      refresh_token:
-                        type: string
-            400:
-              $ref: '#/components/responses/400'
-            401:
-              $ref: '#/components/responses/401'
-            500:
-              $ref: '#/components/responses/500'
-        """
         if not request.is_json:
             return self.response_400(message="Request payload is not JSON")
         username = request.json.get('public_key', None)
@@ -146,31 +97,6 @@ class WalletSecurityApi(SecurityApi):
     @jwt_refresh_token_required
     @safe
     def refresh(self):
-        """
-            Security endpoint for the refresh token, so we can obtain a new
-            token without forcing the user to login again
-        ---
-        post:
-          description: >-
-            Use the refresh token to get a new JWT access token
-          responses:
-            200:
-              description: Refresh Successful
-              content:
-                application/json:
-                  schema:
-                    type: object
-                    properties:
-                      access_token:
-                        description: A new refreshed access token
-                        type: string
-            401:
-              $ref: '#/components/responses/401'
-            500:
-              $ref: '#/components/responses/500'
-          security:
-            - jwt_refresh: []
-        """
         resp = {
             API_SECURITY_ACCESS_TOKEN_KEY: create_access_token(
                 identity=get_jwt_identity(), fresh=False
@@ -186,6 +112,7 @@ class WalletSecurityManager(SecurityManager):
     registeruser_model = RegisterWallet
     security_api = WalletSecurityApi
     authdbview = WalletAuthView
+    #web3_infura_https=os.environ.get('WEB3_INFURA_PROJECT_HTTPS')
 
     @property
     def get_url_for_registeruser(self):
@@ -197,10 +124,6 @@ class WalletSecurityManager(SecurityManager):
     def add_wallet_registration(
         self, username="", public_key="" #, nonce=""
     ):
-        """
-            Add a registration request for the wallet.
-            :rtype : RegisterWallet
-        """
         wallet = self.registeruser_model()
         wallet.username = username
         wallet.email = ""
@@ -265,9 +188,6 @@ class WalletSecurityManager(SecurityManager):
         public_key,
         role
     ):
-        """
-            Generic function to create wallet
-        """
         try:
             wallet = self.user_model()
             wallet.public_key = public_key
@@ -286,26 +206,49 @@ class WalletSecurityManager(SecurityManager):
             self.get_session.rollback()
             return False
 
-    def recover_address(self, signature, hash):
-        w3 = Web3(Web3.HTTPProvider(self.appbuilder.app.config['WEB3_INFURA_PROJECT_HTTPS']))
-        w3.isConnected()
-        print('SIGNATURE:', signature)
-        print('HASH:', hash)
-        message_hash = eth_account.messages.defunct_hash_message(text='9999999')
-        address = w3.eth.account.recoverHash(message_hash, signature=signature)
-        #address = w3.personal.ecRecover(message=message_hash, signature=signature)
-        #address = w3.eth.account.recoverHash(message='9999999', signature=signature)
-        print('RECOVERED_ADDRESS:', address)
-        return address
+    def get_nonce(self, public_key):
+        try:
+            nonce = self.appbuilder.session.query(Wallet.nonce).filter(Wallet.public_key == public_key).first()
+            if nonce:
+                #update_nonce = random_integer()
+                #return appbuilder.session.query.query(Wallet.nonce).filter(Wallet.public_address == public_address).update({'nonce': update_nonce})
+                self.appbuilder.session.close()
+                return nonce[0]
+            else:
+                return None
+        except Exception as e:
+            log.info(e)
+            return None
+
+    def recover_address(self, signature, hash, public_key):
+        try:
+            w3 = Web3(Web3.HTTPProvider(os.environ.get('WEB3_INFURA_PROJECT_HTTPS')))
+            assert w3.isConnected() == True, 'Web3 Cannot Connect to Provider'
+            nonce = self.get_nonce(public_key)
+            log.info('SIGNATURE: {}'.format(signature))
+            log.info('MESSAGE HASH: {}'.format(hash))
+            log.info('CHECK NONCE: {}'.format(nonce))
+            # encoded_message = encode_defunct(bytes(message, encoding='utf8'))  #'9999999'
+            message_hash = eth_account.messages.defunct_hash_message(text=str(nonce))
+            # address = w3.eth.account.recoverHash(message_hash, signature=signature)
+            address = w3.eth.account.recoverHash(message_hash, signature=signature)
+            log.info('RECOVERED ADDRESS: {}'.format(address))
+            return address
+        except AssertionError:
+            log.error('Failed to connect to Web3 Provider')
+            return False
 
     def validate_signature(self, signature, public_key, hash):
-        w3 = Web3(Web3.HTTPProvider(self.appbuilder.app.config['WEB3_INFURA_PROJECT_HTTPS']))
-        w3.isConnected()
         try:
-            validation = self.recover_address(signature, hash)
-            return validation
+            recovered_public_key = self.recover_address(signature, hash, public_key)
+            if recovered_public_key == '' or recovered_public_key == None:
+                log.info('Web3 Failed to Connect: {}'.format(nonce))
+            else:
+                nonce = self.get_nonce(public_key) # Need to check the nonce against the recovered nonce
+                log.info('CONTROL NONCE: {}'.format(nonce))
+                return recovered_public_key
         except Exception as e:
-            print(e)
+            log.info(e)
             return None
 
     def check_public_key_signature(self, signature, public_key, hash):
@@ -313,21 +256,11 @@ class WalletSecurityManager(SecurityManager):
         return validation
 
     def auth_wallet(self, signature, public_key, hash):
-        print("AUTH ATTEMPT")
-        """
-            Method for authenticating wallet, web3 style
-
-            :param public_key:
-                The username or registered public_key (wallet address)
-            :param data:
-                The data, will be signed against a randomly generated nonce on db
-        """
+        log.info("AUTH ATTEMPT BY {}".format(public_key))
         if public_key is None or public_key == "":
             return None
-        print('AUTH PUBLIC_KEY:', public_key)
         user = self.find_user(username=public_key)
         if user is None or (not user.is_active):
-            # Balance failure and success
             check_password_hash(
                 "pbkdf2:sha256:150000$Z3t6fmj2$22da622d94a1f8118"
                 "c0976a03d2f18f680bfff877c9a965db9eedc51bc0be87c",
@@ -336,7 +269,7 @@ class WalletSecurityManager(SecurityManager):
             log.info(LOGMSG_WAR_SEC_LOGIN_FAILED.format(public_key))
             return None
         elif self.check_public_key_signature(signature, user.public_key, hash):
-            print('AUTH WALLET:', user.public_key)
+            log.info('AUTHENTICATED WALLET: {}'.format(user.public_key))
             self.update_user_auth_stat(user, True)
             return user
         else:

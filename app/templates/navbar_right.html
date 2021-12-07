@@ -29,10 +29,10 @@
 {% if not current_user.is_anonymous %}
     <li class="nav-item dropdown">
         <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="#" id="navbarDropdown3" role="button" aria-haspopup="true" aria-expanded="false">
-           <span class="fa fa-rocket"></span> {{g.user.username}}
+           <span class="fa fa-sign-in"></span> {{g.user.username}}
         </a>
         <ul class="dropdown-menu" aria-labelledby="navbarDropdown3">
-            <li class="nav-item dropdown-item"><a class="nav-link" href="{{appbuilder.get_url_for_userinfo}}"><span class="fa fa-fw fa-rocket"></span>{{_("Profile")}}</a></li>
+            <li class="nav-item dropdown-item"><a class="nav-link" href="{{appbuilder.get_url_for_userinfo}}"><span class="fa fa-fw fa-info-circle"></span>{{_("Profile")}}</a></li>
             <li class="nav-item dropdown-item"><a class="nav-link" href="{{appbuilder.get_url_for_logout}}"><span class="fa fa-fw fa-sign-out"></span>{{_("Logout")}}</a></li>
         </ul>
     </li>

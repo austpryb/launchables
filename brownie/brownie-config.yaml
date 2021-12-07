@@ -8,7 +8,6 @@ project_structure:
     reports: reports
     scripts: scripts
     tests: tests
-
 dependencies:
   - smartcontractkit/chainlink-brownie-contracts@0.2.2
   - OpenZeppelin/openzeppelin-contracts@4.4.0

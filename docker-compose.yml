@@ -13,4 +13,4 @@ services:
     container_name: launchable-backend
     restart: always
     volumes:
-      - ./extendsecurity:/usr/src/app
+      - .:/usr/src/app

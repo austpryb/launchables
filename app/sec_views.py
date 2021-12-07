@@ -11,7 +11,9 @@ from wtforms.validators import DataRequired
 from web3 import Web3
 from eth_account.messages import encode_defunct
 from flask_appbuilder._compat import as_unicode
+from flask_appbuilder import const as c
 from flask_appbuilder import ModelView
+from flask_appbuilder.security.registerviews import BaseRegisterUser
 from flask_appbuilder.utils.base import lazy_formatter_gettext
 from flask_appbuilder.security.decorators import has_access
 from werkzeug.wrappers import Response as WerkzeugResponse
@@ -36,6 +38,9 @@ from flask_appbuilder.const import (
 from web3 import Web3
 import eth_account
 from .widgets import Web3FormWidget, Web3ListWidget, Web3ShowWidget
+import logging
+
+log = logging.getLogger(__name__)
 
 APPLICATION_HOST=os.environ.get('APPLICATION_HOST')
 
@@ -116,20 +121,6 @@ class WalletAuthView(AuthDBView):
     basedir = os.path.abspath(os.path.dirname(__file__))
     #login_template = "login_wallet.html"
 
-    def get_nonce(self, public_key):
-        try:
-            nonce = self.appbuilder.session.query(Wallet.nonce).filter(Wallet.public_key == public_key).first()
-            if nonce:
-                #update_nonce = random_integer()
-                #return appbuilder.session.query.query(Wallet.nonce).filter(Wallet.public_address == public_address).update({'nonce': update_nonce})
-                self.appbuilder.session.close()
-                return nonce[0]
-            else:
-                return None
-        except Exception as e:
-            print(e)
-            return None
-
     def build_preflight_response(self):
         response = make_response()
         response.headers.add("Access-Control-Allow-Origin", "*")
@@ -139,14 +130,15 @@ class WalletAuthView(AuthDBView):
 
     @expose("/alchemy", methods=["GET"])
     def nonce(self):
-        alchemy_key = self.appbuilder.app.config['WEB3_INFURA_PROJECT_HTTPS']
+        alchemy_key = os.environ.get('WEB3_ALCHEMY_PROJECT_HTTPS')
         response = jsonify(alchemy_key=alchemy_key)
         response.headers.add("Access-Control-Allow-Origin", "*")
         return response
 
     @expose("/nonce/<public_key>", methods=["GET"])
     def nonce(self, public_key):
-        nonce = self.get_nonce(public_key)
+        #nonce = self.get_nonce(public_key)
+        nonce = self.appbuilder.sm.get_nonce(public_key)
         response = jsonify(nonce=nonce)
         response.headers.add("Access-Control-Allow-Origin", "*")
         return response
@@ -162,7 +154,6 @@ class WalletAuthView(AuthDBView):
                 response = jsonify(wallet=None, success=False)
                 response.headers.add("Access-Control-Allow-Origin", "*")
                 return response
-            print('AUTH WALLET EXECUTED: ', wallet.public_key)
             login_user(wallet, remember=False)
             response = jsonify(wallet=wallet.public_key, url=self.appbuilder.get_url_for_index)
             #response.headers.add("Access-Control-Allow-Origin", "*")
@@ -173,13 +164,11 @@ class WalletAuthView(AuthDBView):
             if g.user is not None and g.user.is_authenticated:
                 return redirect(self.appbuilder.get_url_for_index)
             wallet = self.appbuilder.sm.auth_wallet(signature, public_key, hash)
-            print('AUTH WALLET EXECUTED: ', wallet)
             if not wallet:
                 flash(as_unicode(self.invalid_login_message), "warning")
                 response = jsonify(wallet=None, success=False)
                 response.headers.add("Access-Control-Allow-Origin", "*")
                 return response
-                #return redirect(self.appbuilder.get_url_for_login)
             login_user(wallet, remember=False)
             return redirect(self.appbuilder.get_url_for_index)
 
@@ -324,3 +313,50 @@ class WalletModelView(ModelView):
             widgets=widgets,
             appbuilder=self.appbuilder,
         )
+
+class RegisterWalletView(BaseRegisterUser):
+    route_base = "/register-wallet"
+
+    @expose("/activation/<string:activation_hash>")
+    def activation(self, activation_hash):
+        reg =  self.appbuilder.sm.find_register_user(activation_hash)
+        if not reg:
+            log.error(c.LOGMSG_ERR_SEC_NO_REGISTER_HASH.format(activation_hash))
+            flash(as_unicode(self.false_error_message), "danger")
+            return redirect(self.appbuilder.get_url_for_index)
+        if not self.appbuilder.sm.add_wallet(
+            username=reg.username,
+            public_key=reg.public_key,
+            #nonce=reg.nonce,
+            role=self.appbuilder.sm.find_role(
+                self.appbuilder.sm.auth_user_registration_role
+            ),
+            #hashed_password=reg.password,
+        ):
+            flash(as_unicode(self.error_message), "danger")
+            return redirect(self.appbuilder.get_url_for_index)
+        else:
+            self.appbuilder.sm.del_register_user(reg)
+            return self.render_template(
+                self.activation_template,
+                username=reg.username,
+                public_key=reg.public_key,
+                #nonce=reg.nonce,
+                appbuilder=self.appbuilder,
+            )
+
+    def register_post_api(self, data):
+        register_wallet = self.appbuilder.sm.add_wallet_registration(
+            username=data['username'],
+            public_key=data['public_key']
+        )
+        return register_wallet
+
+    @expose("/wallet", methods=["POST"])
+    def this_form_post(self):
+        data = json.loads(request.data)
+        response = self.register_post_api(data)
+        if response:
+            return json.dumps({'success':'registered user'}), 200
+        else:
+            return json.dumps({'error':'register api error'}), 200

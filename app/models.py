@@ -5,12 +5,13 @@ from flask import g, Markup, url_for
 from flask_appbuilder import Model
 from flask_appbuilder.models.mixins import ImageColumn, AuditMixin, FileColumn
 from flask_appbuilder.security.sqla.models import User
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Boolean, Sequence, Table, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Boolean, Sequence, Table, UniqueConstraint, Enum
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship, Query
 from random import randint
 from . import PinataPy
 import json
+from sqlalchemy.orm import sessionmaker
 from flask_appbuilder.filemanager import get_file_original_name
 
 mindate = datetime.date(datetime.MINYEAR, 1, 1)
@@ -38,17 +39,17 @@ class Wallet(User):
     __tablename__ = "ab_user"
 
     query_class = WalletQuery
-    username = Column(String(64), unique=True, nullable=False)
-    nonce = Column(Integer, nullable=True, default=random_integer, unique=True)
-    public_key = Column(String(256), nullable=True, unique=True)
+    username = Column('username', String(64), unique=True, nullable=False)
+    nonce = Column('nonce', Integer, nullable=True, default=random_integer)
+    public_key = Column('public_key', String(256), nullable=False, unique=True)
 
-    def get_nonce(cls):
+    def __repr__(self):
+        return self.public_key
+
+    def get_nonce(self, cls):
         return self.nonce
 
-    #def __repr__(self):
-    #    return self.public_address
-
-    def get_user_id(cls):
+    def get_user_id(self, cls):
         try:
             return g.user.id
         except Exception:
@@ -59,6 +60,9 @@ class CollectionType(Model):
 
     id = Column('id', Integer, primary_key=True, autoincrement=True)
     collection_type = Column('collection_type', String(250))
+
+    def __repr__(self):
+        return self.collection_type
 
 assoc_launchable_collection_layers = Table(
     "launchable_collection_layers",
@@ -75,6 +79,7 @@ class LaunchableCollection(AuditMixin, Model):
     collection_id = Column('collection_id', String(250))
     collection_name = Column('collection_name', String(250))
     collection_description = Column('collection_description', String(250))
+
     collection_type_id = Column('collection_type_id', Integer, ForeignKey("collection_type.id"), nullable=True)
     collection_type = relationship('CollectionType')
 
@@ -95,26 +100,19 @@ class CollectionLayers(AuditMixin, Model):
     layer_order = Column('layer_order', Integer)
     layer_name = Column('collection_name', String(250))
     layer_description = Column('collection_description', String(250))
-    #layer_image_id = Column('layer_image_id', Integer, ForeignKey("layer_images.id"), nullable=True)
-    #layer_image = relationship('LayerImages')
-    #layer_file_id = Column('layer_file_id', Integer, ForeignKey("layer_files.id"), nullable=True)
-    #layer_file = relationship('LayerFiles')
-
-    #launchable_collection_layers = relationship(
-    #         "LaunchableCollection", secondary=assoc_launchable_collection_layers, backref='collection_layers',
-    #)
 
     def __repr__(self):
         return self.layer_name
 
-class LayerFiles(Model):
+class LayerFiles(AuditMixin, Model):
     __tablename__ = "layer_files"
 
-    id = Column(Integer, primary_key=True)
-    layer_id = Column(Integer, ForeignKey("collection_layers.id"))
+    id = Column('id', Integer, primary_key=True)
+    file = Column('file', FileColumn, nullable=False)
+    description = Column('description', String(150))
+
+    layer_id = Column('layer_id', Integer, ForeignKey("collection_layers.id"))
     layer = relationship("CollectionLayers")
-    file = Column(FileColumn, nullable=False)
-    description = Column(String(150))
 
     def download(self):
         return Markup(
@@ -126,14 +124,15 @@ class LayerFiles(Model):
     def filename(self):
         return get_file_original_name(str(self.file))
 
-class LayerImages(Model):
+class LayerImages(AuditMixin, Model):
     __tablename__ = "layer_images"
 
-    id = Column(Integer, primary_key=True)
-    layer_id = Column(Integer, ForeignKey("collection_layers.id"))
+    id = Column('id', Integer, primary_key=True)
+    image = Column('image', ImageColumn(size=(300, 300, True), thumbnail_size=(60, 60, True)))
+    description = Column('description', String(150))
+
+    layer_id = Column('layer_id', Integer, ForeignKey("collection_layers.id"))
     layer = relationship("CollectionLayers")
-    image = Column(ImageColumn(size=(300, 300, True), thumbnail_size=(60, 60, True)))
-    description = Column(String(150))
 
     def photo_img(self):
         im = PinataPy.PinataFileManager()
@@ -157,6 +156,32 @@ class LayerImages(Model):
             return Markup('<a href="' + url_for('LayerImagesModelView.show',pk=str(self.id)) +\
              '" class="thumbnail"><img src="' + self.image + '" alt="Photo" class="img-responsive"></a>')
 
+    def __repr__(self):
+        return self.layer
+
+class ContractType(Model):
+    __tablename__ = 'contract_type'
+
+    id = Column('id', Integer, primary_key=True, autoincrement=True)
+    contract_type = Column('contract_type', String(250))
+
+    def __repr__(self):
+        return self.contract_type
+
+class Contracts(AuditMixin, Model):
+    __tablename__ = 'contracts'
+
+    id = Column('id', Integer, primary_key=True, autoincrement=True)
+    contract = Column('contract', String(250))
+    contract_name = Column('contract_name', String(250))
+    status = Column('status', Enum('Not Launched', 'Launched', 'Launch in Progress'), nullable=False, default='Not Launched')
+
+    contract_type_id = Column('contract_type_id', Integer, ForeignKey('contract_type.id'))
+    contract_type = relationship('ContractType')
+
+    def __repr__(self):
+        return self.contract
+
 class RegisterWallet(Model):
     __tablename__ = "ab_register"
 
@@ -168,3 +193,6 @@ class RegisterWallet(Model):
     registration_date = Column(DateTime, default=datetime.datetime.now, nullable=True)
     registration_hash = Column(String(256))
     registration_hash_url = Column(String(256))
+
+    def __repr__(self):
+        return self.public_key

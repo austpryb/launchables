@@ -4,7 +4,6 @@ from flask_appbuilder.views import expose
 from flask_appbuilder.models.sqla.filters import FilterEqualFunction, FilterInFunction
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder.security.views import UserDBModelView
-from flask_appbuilder.security.registerviews import BaseRegisterUser
 from flask_babel import lazy_gettext
 from flask_appbuilder.filemanager import FileManager, uuid_namegen
 from flask_appbuilder.upload import FileUploadField
@@ -15,6 +14,7 @@ from flask_appbuilder.widgets import ListWidget
 from flask_appbuilder.urltools import get_filter_args
 from sqlalchemy import create_engine
 from . import appbuilder, db
+from app.sec_views import RegisterWalletView
 from app.models import CollectionLayers, LayerFiles, LayerImages, LaunchableCollection, assoc_launchable_collection_layers
 from .PinataPy import PinataFileUploadField, PinataFileManager, PinataPy
 from .widgets import Web3FormWidget, Web3ListWidget, Web3ShowWidget
@@ -42,6 +42,7 @@ pinata_secret_api_key = os.environ.get('PINATA_API_SECRET')
 project_id = os.environ.get('IPFS_PROJECT_ID')
 project_secret = os.environ.get('IPFS_PROJECT_SECRET')
 factory_override = os.environ.get('FACTORY_OVERRIDE') #factory, stats, fund-launch, fund, launch, payload
+disable_brownie = os.environ.get('DISABLE_BROWNIE')
 
 OPENSEA_FORMAT = "https://testnets.opensea.io/assets/{}/{}"
 NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS = ["hardhat", "development", "ganache"]
@@ -49,6 +50,7 @@ LOCAL_BLOCKCHAIN_ENVIRONMENTS = NON_FORKED_LOCAL_BLOCKCHAIN_ENVIRONMENTS + [
     "mainnet-fork",
     "binance-fork",
     "matic-fork",
+    "avalanch-fork"
 ]
 
 DECIMALS = 18
@@ -59,12 +61,40 @@ if os.environ.get('DEPLOYMENT') == 'local':
 else:
     os.chdir(r'/usr/src/app/brownie/')
 
-network.connect('rinkeby')
-project = project.load(r'.')
-project.load_config()
+if disable_brownie == False or disable_brownie == 'False':
+    network.connect('rinkeby')
+    project = project.load(r'/usr/src/app/brownie/')
+    project.load_config()
+elif  disable_brownie == True or disable_brownie == 'True':
+    pass
 
 def get_user_id():
     return g.user.id
+
+def get_user_public_key():
+    return g.user.public_key
+
+def update_contracts(contracts=None, status=None):
+    for i in contracts:
+        try:
+            insert = appbuilder.session.query(Contracts.created_by_fk) \
+                                       .filter(LaunchableCollection.created_by_fk == get_user_id())
+            appbuilder.session.close()
+            return True
+        except Exception as e:
+            logging.info(e)
+            return None
+
+def add_contracts(contracts=None, status=None):
+    for i in contracts:
+        try:
+            insert = appbuilder.session.query(Contracts.created_by_fk) \
+                                       .filter(LaunchableCollection.created_by_fk == get_user_id())
+            appbuilder.session.close()
+            return True
+        except Exception as e:
+            logging.info(e)
+            return None
 
 def wallet_level_security():
     model = 'LaunchableCollection'
@@ -75,7 +105,7 @@ def wallet_level_security():
             appbuilder.session.close()
             return wallet_collections
         except Exception as e:
-            print(e)
+            logging.info(e)
             return None
     elif model == 'CollectionLayers':
         try:
@@ -84,19 +114,22 @@ def wallet_level_security():
             appbuilder.session.close()
             return wallet_collections
         except Exception as e:
-            print(e)
+            logging.info(e)
             return None
 
 def get_collection(id):
     try:
         payload = {}
-        collection = appbuilder.session.query(CollectionLayers.id, LaunchableCollection.collection_name, CollectionLayers.layer_name, CollectionLayers.layer_order) \
-                                       .join(LaunchableCollection) \
-                                       .filter(LaunchableCollection.id == id) \
+
+        layers = appbuilder.session.query(assoc_launchable_collection_layers.c.collection_layers_id) \
+                                   .filter(assoc_launchable_collection_layers.c.launchable_collection_id == id) \
+                                   .all()
+        layers = [id[0] for id in layers]
+        collection = appbuilder.session.query(CollectionLayers.id, CollectionLayers.layer_name, CollectionLayers.layer_order) \
+                                       .filter(CollectionLayers.id.in_(layers)) \
                                        .order_by(CollectionLayers.layer_order) \
                                        .all()
         collection_len = len(collection)
-        payload['collection_name'] = list(set([x.collection_name for x in collection]))[0]
         collection_layer_ids = set([x.id for x in collection])
         print('Collection has {} layers to process'.format(collection_len))
         for i in collection:
@@ -106,7 +139,7 @@ def get_collection(id):
         appbuilder.session.close()
         return payload
     except Exception as e:
-        print(e)
+        logging.info(e)
         return None
 
 def get_account(index=None, id=None):
@@ -119,20 +152,6 @@ def get_account(index=None, id=None):
     return accounts.add(config["wallets"]["from_key"])
 
 def get_contract(contract_name):
-    """If you want to use this function, go to the brownie config and add a new entry for
-    the contract that you want to be able to 'get'. Then add an entry in the in the variable 'contract_to_mock'.
-    You'll see examples like the 'link_token'.
-        This script will then either:
-            - Get a address from the config
-            - Or deploy a mock to use for a network that doesn't have it
-        Args:
-            contract_name (string): This is the name that is refered to in the
-            brownie config and 'contract_to_mock' variable.
-        Returns:
-            brownie.network.contract.ProjectContract: The most recently deployed
-            Contract of the type specificed by the dictonary. This could be either
-            a mock or the 'real' contract on a live network.
-    """
     contract_to_mock = {
         "link_token": project.LinkToken
     }
@@ -165,9 +184,32 @@ def fund_with_link(
     print("Funded {}".format(contract_address))
     return tx
 
+def deploy_factory(payload, proxy_registry_address, account=None):
+    try:
+        account = account if account else get_account()
 
-def deploy_factory(payload):
-    #try:
+        launchable = project.LaunchCollectible.deploy(
+            proxy_registry_address,
+            {"from": account},
+            publish_source=True
+        )
+        factory = project.Factory.deploy(
+            proxy_registry_address,
+            launchable.address,
+            config["networks"][network.show_active()]["vrf_coordinator"],
+            config["networks"][network.show_active()]["link_token"],
+            config["networks"][network.show_active()]["keyhash"],
+            {"from": account},
+            publish_source=True,
+        )
+        fund_factory = fund_with_link(account=account, contract_address=factory.address)
+        return factory.address, launchable.address
+    except Exception as e:
+        logging.error(e)
+        return str(e), None
+
+def deploy_factory_test(payload):
+    try:
         proxy_registry_address = developer_wallet
         account = accounts.add(config['wallets']['from_key'])
         if factory_override == 'factory':
@@ -189,14 +231,8 @@ def deploy_factory(payload):
             return factory.address, launchable.address
         elif factory_override == 'payload':
             nft_images = map_layers_from_index(layers=get_layers(payload), nft_request=nft_request(randomness=get_randomness_dev()))
-            logging.info('NFT Images:')
-            logging.info(nft_images)
             nft = process_mapped_image(nft_images)
-            logging.info('NFT:')
-            logging.info(nft)
             image = assemble_layers(nft)
-            logging.info('Combined Image:')
-            logging.info(image)
             return True, True
         elif factory_override == 'fund-launch':
             factory = project.Factory[len(project.Factory) - 1] #0x88933d0D5aA80855E0cB1Aa12A36924891a754B4
@@ -229,22 +265,11 @@ def deploy_factory(payload):
             overview = factory.getLaunchableStats(count)
             logging.info(overview)
             return factory.address, overview
-    #except Exception as e:
-    #    logging.error(e)
-    #    return str(e), None
-
-def mint(factory_address, launchable_address):
-    try:
-        return True
     except Exception as e:
         logging.error(e)
-        return str(e)
+        return str(e), None
 
 def map_layers_from_index(layers, nft_request):
-    print('mapping layers')
-    print(layers)
-    print('to nft request')
-    print(nft_request)
     mapped_layers = {}
     for layer in layers.keys():
         if layers[layer]:
@@ -263,6 +288,7 @@ def assemble_images(nft):
     for i in nft.values():
         yield i
 
+# Refactor this to query the Factory contract
 def get_randomness_dev():
     randomness = {
             'layer1':random.randint(0, 2),
@@ -354,58 +380,6 @@ def assemble_layers(nft):
 
 class ListDownloadWidget(ListWidget):
     template = 'widgets/list_download.html'
-
-class RegisterWalletView(BaseRegisterUser):
-    route_base = "/register-wallet"
-
-    @expose("/activation/<string:activation_hash>")
-    def activation(self, activation_hash):
-        """
-            Endpoint to expose an activation url, this url
-            is sent to the user by email, when accessed the user is inserted
-            and activated
-        """
-        reg =   self.appbuilder.sm.find_register_user(activation_hash)
-        if not reg:
-            log.error(c.LOGMSG_ERR_SEC_NO_REGISTER_HASH.format(activation_hash))
-            flash(as_unicode(self.false_error_message), "danger")
-            return redirect(self.appbuilder.get_url_for_index)
-        if not self.appbuilder.sm.add_wallet(
-            username=reg.username,
-            public_key=reg.public_key,
-            #nonce=reg.nonce,
-            role=self.appbuilder.sm.find_role(
-                self.appbuilder.sm.auth_user_registration_role
-            ),
-            #hashed_password=reg.password,
-        ):
-            flash(as_unicode(self.error_message), "danger")
-            return redirect(self.appbuilder.get_url_for_index)
-        else:
-            self.appbuilder.sm.del_register_user(reg)
-            return self.render_template(
-                self.activation_template,
-                username=reg.username,
-                public_key=reg.public_key,
-                #nonce=reg.nonce,
-                appbuilder=self.appbuilder,
-            )
-
-    def register_post_api(self, data):
-        register_wallet = self.appbuilder.sm.add_wallet_registration(
-            username=data['username'],
-            public_key=data['public_key']
-        )
-        return register_wallet
-
-    @expose("/wallet", methods=["POST"])
-    def this_form_post(self):
-        data = json.loads(request.data)
-        response = self.register_post_api(data)
-        if response:
-            return json.dumps({'success':'registered user'}), 200
-        else:
-            return json.dumps({'error':'register api error'}), 200
 
 class LayerFilesModelView(ModelView):
     show_template = 'show.html'
@@ -722,10 +696,14 @@ class LaunchableCollectionModelView(ModelView):
 
     def launch_pad(self, item):
         payload = get_collection(item)
-        logging.info(item, payload)
-        #factory_contract, launchable_contract = deploy_factory(payload)
-        #logging.info(str(factory_contract) + ' | '  +  str(launchable_contract))
-        return True
+        if payload:
+            factory_contract, launchable_contract = deploy_factory(payload=payload, account=None, proxy_registry_address=get_user_public_key())
+            if not factory_contract or not launchable_contract:
+                return None, None
+            logging.info(str(factory_contract) + ' | '  +  str(launchable_contract))
+            return factory_contract, launchable_contract
+        else:
+            return None, None
 
     list_columns = [
         "collection_name"
@@ -767,7 +745,7 @@ class LaunchableCollectionModelView(ModelView):
     def download_csv(self):
         output = BytesIO()
         now = datetime.now()
-        date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+        date_time = now.strftime('%m/%d/%Y')
         get_filter_args(self._filters)
 
         if not self.base_order:
@@ -791,7 +769,13 @@ class LaunchableCollectionModelView(ModelView):
     def launch(self, items):
         if isinstance(items, list):
             for item in items:
-                self.launch_pad(item.id)
+                #add_contracts(contracts=items, status='Launch in Progress')
+                factory_contract, launchable_contract = self.launch_pad(item.id)
+                if not factory_contract and not launchable_contract:
+                    flash(as_unicode('Collection(s) failed to deploy'), "danger")
+                else:
+                    #update_contracts(contracts=[factory_contract, launchable_contract], status='Launched')
+                    flash(as_unicode('Collection(s) Launched at Factory: {} and Tradable: {} addresses'.format(factory_contract, launchable_contract)), 'success')
             self.update_redirect()
         else:
             self.launch_pad(items)
@@ -808,7 +792,7 @@ class Web3ConnectView(BaseView):
 appbuilder.add_view_no_menu(Web3ConnectView)
 
 appbuilder.add_view(
-    LaunchableCollectionModelView, "Launch Collections", category_icon='fa-bars', icon="fa-file", category="Collections"
+    LaunchableCollectionModelView, "Launch Collections", category_icon='fa-bars', icon="fa-object-group", category="Collections"
 )
 
 appbuilder.add_view(
